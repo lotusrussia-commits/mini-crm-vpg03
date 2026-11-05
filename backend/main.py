@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 
-from backend.database import Base, engine
+from backend.database import Base, engine, ensure_schema
 from backend import models
 from backend.routers import clients, deals, tasks
 
 
 Base.metadata.create_all(bind=engine)
+ensure_schema()
 
 app = FastAPI(
     title="Mini CRM API",

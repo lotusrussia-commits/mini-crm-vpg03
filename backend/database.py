@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,3 +31,26 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_schema():
+    """Добавляет новые колонки в уже существующую SQLite-базу."""
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+
+    if "clients" not in tables:
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("clients")}
+    if "status" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE clients "
+            "ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'active'"
+        ))
+        connection.execute(text(
+            "UPDATE clients SET status = 'active' "
+            "WHERE status IS NULL OR status = ''"
+        ))

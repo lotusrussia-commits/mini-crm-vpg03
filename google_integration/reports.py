@@ -20,8 +20,9 @@ def build_clients_report(clients):
     )
     top_company = counted.most_common(1)
     top_label = top_company[0][0] if top_company else "—"
+    statuses = Counter(item.get("status") or "active" for item in clients)
 
-    headers = ["ID", "Имя", "Компания", "Телефон", "Email"]
+    headers = ["ID", "Имя", "Компания", "Телефон", "Email", "Статус"]
     rows = [
         [
             item.get("id"),
@@ -29,16 +30,19 @@ def build_clients_report(clients):
             item.get("company") or "",
             item.get("phone") or "",
             item.get("email") or "",
+            item.get("status") or "active",
         ]
         for item in clients
     ]
-    summary = _summary_block([
+    summary_items = [
         ("Всего клиентов", len(clients)),
         ("С компанией", with_company),
         ("Без компании", len(clients) - with_company),
         ("Самая частая компания", top_label),
-    ])
-    return "Клиенты", headers, rows, summary, []
+        ("Активных", statuses.get("active", 0)),
+        ("В архиве", statuses.get("archived", 0)),
+    ]
+    return "Клиенты", headers, rows, _summary_block(summary_items), []
 
 
 def build_deals_report(deals):

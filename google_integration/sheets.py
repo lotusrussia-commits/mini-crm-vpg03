@@ -34,7 +34,7 @@ def get_crm_data():
         tasks = db.query(Task).order_by(Task.id).all()
 
         client_rows = [[
-            "ID", "Имя", "Компания", "Телефон", "Email", "Дата создания"
+            "ID", "Имя", "Компания", "Телефон", "Email", "Статус", "Дата создания"
         ]]
 
         for client in clients:
@@ -44,6 +44,7 @@ def get_crm_data():
                 client.company or "",
                 client.phone or "",
                 client.email or "",
+                client.status or "active",
                 client.created_at.isoformat() if client.created_at else "",
             ])
 

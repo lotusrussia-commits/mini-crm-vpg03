@@ -17,7 +17,7 @@ class ClientForm(tk.Toplevel):
         self.client = client
 
         self.title("Редактирование клиента" if client else "Новый клиент")
-        self.geometry("430x350")
+        self.geometry("430x410")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
@@ -45,6 +45,18 @@ class ClientForm(tk.Toplevel):
             if client:
                 entry.insert(0, client.get(key) or "")
 
+        ttk.Label(frame, text="Статус").grid(
+            row=4, column=0, sticky="w", pady=8
+        )
+        self.status_box = ttk.Combobox(
+            frame,
+            values=["active", "archived"],
+            state="readonly",
+            width=32,
+        )
+        self.status_box.grid(row=4, column=1, padx=(12, 0), pady=8)
+        self.status_box.set((client or {}).get("status") or "active")
+
         frame.columnconfigure(1, weight=1)
 
         buttons = ttk.Frame(frame)
@@ -63,6 +75,7 @@ class ClientForm(tk.Toplevel):
             key: entry.get().strip() or None
             for key, entry in self.entries.items()
         }
+        data["status"] = self.status_box.get() or "active"
 
         if not data["name"]:
             messagebox.showwarning(
@@ -90,7 +103,7 @@ class DealForm(tk.Toplevel):
         self.api = api
         self.on_save = on_save
         self.deal = deal
-        self.clients = self.api.get_clients()
+        self.clients = self.api.get_clients(include_archived=True)
 
         self.title("Редактирование сделки" if deal else "Новая сделка")
         self.geometry("480x430")
@@ -239,7 +252,7 @@ class TaskForm(tk.Toplevel):
         self.on_save = on_save
         self.task = task
 
-        self.clients = self.api.get_clients()
+        self.clients = self.api.get_clients(include_archived=True)
         self.deals = self.api.get_deals()
 
         self.title("Редактирование задачи" if task else "Новая задача")
@@ -635,13 +648,13 @@ class MainWindow:
         GoogleSettingsDialog(self.root)
 
     def export_section(self, section):
-        loaders = {
-            "clients": self.api.get_clients,
-            "deals": self.api.get_deals,
-            "tasks": self.api.get_tasks,
-        }
         try:
-            records = loaders[section]()
+            if section == "clients":
+                records = self.api.get_clients(include_archived=True)
+            elif section == "deals":
+                records = self.api.get_deals()
+            else:
+                records = self.api.get_tasks()
             result = export_section_report(section, records)
             ReportReadyDialog(
                 self.root,
@@ -716,7 +729,11 @@ class MainWindow:
         ).pack(side="left", padx=3)
 
         ttk.Button(
-            actions, text="Удалить", command=self.delete_client
+            actions, text="В архив", command=self.archive_client
+        ).pack(side="left", padx=3)
+
+        ttk.Button(
+            actions, text="Восстановить", command=self.restore_client
         ).pack(side="left", padx=3)
 
         ttk.Button(
@@ -729,7 +746,26 @@ class MainWindow:
             command=lambda: self.export_section("clients"),
         ).pack(side="left", padx=3)
 
-        columns = ("id", "name", "company", "phone", "email")
+        filters = ttk.Frame(self.content)
+        filters.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(filters, text="Поиск").pack(side="left")
+        self.clients_query = ttk.Entry(filters, width=28)
+        self.clients_query.pack(side="left", padx=6)
+        ttk.Label(filters, text="Статус").pack(side="left", padx=(10, 0))
+        self.clients_status = ttk.Combobox(
+            filters,
+            values=["active", "archived", "all"],
+            state="readonly",
+            width=12,
+        )
+        self.clients_status.set("active")
+        self.clients_status.pack(side="left", padx=6)
+        ttk.Button(
+            filters, text="Найти", command=self.load_clients
+        ).pack(side="left")
+
+        columns = ("id", "name", "company", "phone", "email", "status")
         self.clients_table = ttk.Treeview(
             self.content, columns=columns, show="headings",
             selectmode="browse",
@@ -737,11 +773,11 @@ class MainWindow:
 
         headings = {
             "id": "ID", "name": "Имя", "company": "Компания",
-            "phone": "Телефон", "email": "Email",
+            "phone": "Телефон", "email": "Email", "status": "Статус",
         }
         widths = {
-            "id": 50, "name": 170, "company": 200,
-            "phone": 150, "email": 200,
+            "id": 50, "name": 170, "company": 180,
+            "phone": 140, "email": 180, "status": 90,
         }
 
         for column in columns:
@@ -757,8 +793,17 @@ class MainWindow:
         for item in self.clients_table.get_children():
             self.clients_table.delete(item)
 
+        query = self.clients_query.get().strip()
+        status_value = self.clients_status.get()
+        include_archived = status_value == "all"
+        status = None if status_value == "all" else status_value
+
         try:
-            for client in self.api.get_clients():
+            for client in self.api.get_clients(
+                q=query or None,
+                status=status,
+                include_archived=include_archived,
+            ):
                 self.clients_table.insert(
                     "", "end", iid=str(client["id"]),
                     values=(
@@ -766,6 +811,7 @@ class MainWindow:
                         client["company"] or "",
                         client["phone"] or "",
                         client["email"] or "",
+                        client.get("status") or "active",
                     ),
                 )
         except Exception as error:
@@ -811,7 +857,7 @@ class MainWindow:
         self.load_clients()
         messagebox.showinfo("Успешно", "Клиент обновлён.")
 
-    def delete_client(self):
+    def archive_client(self):
         client_id = self.get_selected_id(
             self.clients_table, "клиента"
         )
@@ -820,14 +866,29 @@ class MainWindow:
 
         if not messagebox.askyesno(
             "Подтверждение",
-            f"Удалить клиента №{client_id}?",
+            f"Отправить клиента №{client_id} в архив?\n"
+            "Сделки и задачи останутся на месте.",
         ):
             return
 
         try:
-            self.api.delete_client(client_id)
+            self.api.archive_client(client_id)
             self.load_clients()
-            messagebox.showinfo("Успешно", "Клиент удалён.")
+            messagebox.showinfo("Успешно", "Клиент архивирован.")
+        except Exception as error:
+            messagebox.showerror("Ошибка", str(error))
+
+    def restore_client(self):
+        client_id = self.get_selected_id(
+            self.clients_table, "клиента"
+        )
+        if client_id is None:
+            return
+
+        try:
+            self.api.restore_client(client_id)
+            self.load_clients()
+            messagebox.showinfo("Успешно", "Клиент восстановлен.")
         except Exception as error:
             messagebox.showerror("Ошибка", str(error))
 
@@ -868,6 +929,24 @@ class MainWindow:
             command=lambda: self.export_section("deals"),
         ).pack(side="left", padx=3)
 
+        filters = ttk.Frame(self.content)
+        filters.pack(fill="x", pady=(0, 10))
+        ttk.Label(filters, text="Поиск").pack(side="left")
+        self.deals_query = ttk.Entry(filters, width=28)
+        self.deals_query.pack(side="left", padx=6)
+        ttk.Label(filters, text="Статус").pack(side="left", padx=(10, 0))
+        self.deals_status = ttk.Combobox(
+            filters,
+            values=["", "new", "in_progress", "completed", "cancelled"],
+            state="readonly",
+            width=14,
+        )
+        self.deals_status.set("")
+        self.deals_status.pack(side="left", padx=6)
+        ttk.Button(filters, text="Найти", command=self.load_deals).pack(
+            side="left"
+        )
+
         columns = (
             "id", "title", "amount", "status", "description", "client_id"
         )
@@ -902,7 +981,10 @@ class MainWindow:
             self.deals_table.delete(item)
 
         try:
-            for deal in self.api.get_deals():
+            for deal in self.api.get_deals(
+                q=self.deals_query.get().strip() or None,
+                status=self.deals_status.get() or None,
+            ):
                 self.deals_table.insert(
                     "", "end", iid=str(deal["id"]),
                     values=(
@@ -1005,6 +1087,24 @@ class MainWindow:
             command=lambda: self.export_section("tasks"),
         ).pack(side="left", padx=3)
 
+        filters = ttk.Frame(self.content)
+        filters.pack(fill="x", pady=(0, 10))
+        ttk.Label(filters, text="Поиск").pack(side="left")
+        self.tasks_query = ttk.Entry(filters, width=28)
+        self.tasks_query.pack(side="left", padx=6)
+        ttk.Label(filters, text="Статус").pack(side="left", padx=(10, 0))
+        self.tasks_status = ttk.Combobox(
+            filters,
+            values=["", "pending", "in_progress", "completed", "cancelled"],
+            state="readonly",
+            width=14,
+        )
+        self.tasks_status.set("")
+        self.tasks_status.pack(side="left", padx=6)
+        ttk.Button(filters, text="Найти", command=self.load_tasks).pack(
+            side="left"
+        )
+
         columns = (
             "id", "title", "status", "due_date", "client_id", "deal_id"
         )
@@ -1048,7 +1148,10 @@ class MainWindow:
             self.tasks_table.delete(item)
 
         try:
-            for task in self.api.get_tasks():
+            for task in self.api.get_tasks(
+                q=self.tasks_query.get().strip() or None,
+                status=self.tasks_status.get() or None,
+            ):
                 self.tasks_table.insert(
                     "",
                     "end",

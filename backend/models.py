@@ -14,6 +14,7 @@ class Client(Base):
     company: Mapped[str | None] = mapped_column(String(150))
     phone: Mapped[str | None] = mapped_column(String(30))
     email: Mapped[str | None] = mapped_column(String(150))
+    status: Mapped[str] = mapped_column(String(50), default="active")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -21,7 +22,6 @@ class Client(Base):
 
     deals: Mapped[list["Deal"]] = relationship(
         back_populates="client",
-        cascade="all, delete-orphan",
     )
     tasks: Mapped[list["Task"]] = relationship(
         back_populates="client",

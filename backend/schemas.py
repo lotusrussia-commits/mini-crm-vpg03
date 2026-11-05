@@ -10,6 +10,7 @@ class ClientCreate(BaseModel):
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=30)
     email: str | None = Field(default=None, max_length=150)
+    status: str = Field(default="active", max_length=50)
 
 
 class ClientUpdate(BaseModel):
@@ -17,6 +18,7 @@ class ClientUpdate(BaseModel):
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=30)
     email: str | None = Field(default=None, max_length=150)
+    status: str | None = Field(default=None, max_length=50)
 
 
 class ClientRead(BaseModel):
@@ -25,6 +27,7 @@ class ClientRead(BaseModel):
     company: str | None
     phone: str | None
     email: str | None
+    status: str
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -58,7 +61,9 @@ class DealRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-    # Схемы задач
+
+
+# Схемы задач
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
