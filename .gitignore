@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!config/.env.example
 
 # Google credentials and OAuth tokens
 credentials.json
@@ -30,6 +31,7 @@ htmlcov/
 *.sqlite3
 *.db
 data/*
+!data/.gitkeep
 
 # macOS and IDE
 .DS_Store
@@ -39,3 +41,6 @@ data/*
 
 # Logs
 *.log
+
+# Local Google GUI settings
+config/google_settings.json

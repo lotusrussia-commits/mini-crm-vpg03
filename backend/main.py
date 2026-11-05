@@ -24,3 +24,8 @@ def root():
         "message": "Mini CRM API работает",
         "docs": "/docs",
     }
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

@@ -163,3 +163,120 @@ def create_and_export_crm(title="Mini CRM — экспорт"):
     return export_crm_to_spreadsheet(
         spreadsheet["spreadsheetId"]
     )
+
+
+def write_formatted_values(
+    spreadsheet_id,
+    sheet_title,
+    values,
+    number_columns=None,
+    data_row_count=0,
+):
+    """Записывает данные в таблицу и применяет базовое оформление."""
+    service = get_sheets_service()
+    spreadsheet = service.spreadsheets().get(
+        spreadsheetId=spreadsheet_id
+    ).execute()
+    sheet_id = spreadsheet["sheets"][0]["properties"]["sheetId"]
+
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={
+            "requests": [{
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": sheet_id,
+                        "title": sheet_title,
+                        "gridProperties": {"frozenRowCount": 1},
+                    },
+                    "fields": "title,gridProperties.frozenRowCount",
+                }
+            }]
+        },
+    ).execute()
+
+    service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"'{sheet_title}'!A1",
+        valueInputOption="USER_ENTERED",
+        body={"values": values},
+    ).execute()
+
+    requests = [
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "backgroundColor": {
+                            "red": 0.16,
+                            "green": 0.32,
+                            "blue": 0.59,
+                        },
+                        "textFormat": {
+                            "foregroundColor": {
+                                "red": 1,
+                                "green": 1,
+                                "blue": 1,
+                            },
+                            "bold": True,
+                        },
+                        "horizontalAlignment": "CENTER",
+                    }
+                },
+                "fields": (
+                    "userEnteredFormat(backgroundColor,"
+                    "textFormat,horizontalAlignment)"
+                ),
+            }
+        },
+        {
+            "autoResizeDimensions": {
+                "dimensions": {
+                    "sheetId": sheet_id,
+                    "dimension": "COLUMNS",
+                    "startIndex": 0,
+                    "endIndex": max(len(row) for row in values),
+                }
+            }
+        },
+    ]
+
+    if number_columns and data_row_count:
+        for column_index in number_columns:
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "endRowIndex": 1 + data_row_count,
+                        "startColumnIndex": column_index,
+                        "endColumnIndex": column_index + 1,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "numberFormat": {
+                                "type": "NUMBER",
+                                "pattern": "#,##0.00",
+                            }
+                        }
+                    },
+                    "fields": "userEnteredFormat.numberFormat",
+                }
+            })
+
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": requests},
+    ).execute()
+
+    return {
+        "spreadsheet_id": spreadsheet_id,
+        "spreadsheet_url": (
+            f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+        ),
+    }

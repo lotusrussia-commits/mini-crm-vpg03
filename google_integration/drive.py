@@ -1,4 +1,3 @@
-
 from io import BytesIO
 
 from googleapiclient.discovery import build
@@ -18,7 +17,7 @@ def get_drive_service():
     )
 
 
-def create_text_file(name: str, content: str):
+def create_text_file(name: str, content: str, folder_id=None):
     """Создаёт текстовый файл на Google Диске."""
     service = get_drive_service()
 
@@ -26,6 +25,8 @@ def create_text_file(name: str, content: str):
         "name": name,
         "mimeType": "text/plain",
     }
+    if folder_id:
+        file_metadata["parents"] = [folder_id]
 
     media = MediaIoBaseUpload(
         BytesIO(content.encode("utf-8")),
@@ -33,16 +34,14 @@ def create_text_file(name: str, content: str):
         resumable=True,
     )
 
-    result = service.files().create(
+    return service.files().create(
         body=file_metadata,
         media_body=media,
         fields="id, name, mimeType, webViewLink",
     ).execute()
 
-    return result
 
-
-def create_folder(name: str):
+def create_folder(name: str, parent_id=None):
     """Создаёт папку на Google Диске."""
     service = get_drive_service()
 
@@ -50,10 +49,27 @@ def create_folder(name: str):
         "name": name,
         "mimeType": "application/vnd.google-apps.folder",
     }
+    if parent_id:
+        folder_metadata["parents"] = [parent_id]
 
-    result = service.files().create(
+    return service.files().create(
         body=folder_metadata,
         fields="id, name, mimeType, webViewLink",
     ).execute()
 
-    return result
+
+def create_spreadsheet(name: str, folder_id=None):
+    """Создаёт Google Таблицу через Drive API."""
+    service = get_drive_service()
+
+    file_metadata = {
+        "name": name,
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+    }
+    if folder_id:
+        file_metadata["parents"] = [folder_id]
+
+    return service.files().create(
+        body=file_metadata,
+        fields="id, name, mimeType, webViewLink",
+    ).execute()

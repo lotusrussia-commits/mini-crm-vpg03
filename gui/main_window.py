@@ -1,10 +1,13 @@
 import tkinter as tk
+import webbrowser
 from datetime import date
-from tkinter import ttk, messagebox
+from pathlib import Path
+from tkinter import filedialog, ttk, messagebox
 
+from google_integration.reports import export_section_report
+from google_integration.settings_store import load_settings, save_settings
 from google_integration.sheets import update_configured_spreadsheet
 from gui.api_client import APIClient
-from google_integration.sheets import update_configured_spreadsheet
 
 
 class ClientForm(tk.Toplevel):
@@ -420,6 +423,146 @@ class TaskForm(tk.Toplevel):
             )
 
 
+class GoogleSettingsDialog(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Настройки Google")
+        self.geometry("560x260")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        settings = load_settings()
+        frame = ttk.Frame(self, padding=20)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(frame, text="JSON-файл OAuth").grid(
+            row=0, column=0, sticky="w", pady=8
+        )
+        self.credentials_entry = ttk.Entry(frame, width=42)
+        self.credentials_entry.grid(row=0, column=1, sticky="ew", pady=8)
+        self.credentials_entry.insert(0, settings.get("credentials_file", ""))
+        ttk.Button(
+            frame, text="Выбрать", command=self.choose_credentials
+        ).grid(row=0, column=2, padx=6)
+
+        ttk.Label(frame, text="ID папки Google Drive").grid(
+            row=1, column=0, sticky="w", pady=8
+        )
+        self.folder_entry = ttk.Entry(frame, width=42)
+        self.folder_entry.grid(row=1, column=1, sticky="ew", pady=8)
+        self.folder_entry.insert(0, settings.get("folder_id", ""))
+        ttk.Button(
+            frame, text="Вставить", command=self.paste_folder_id
+        ).grid(row=1, column=2, padx=6)
+
+        ttk.Label(
+            frame,
+            text="Ctrl+V в Tkinter на macOS может не работать — "
+                 "используйте кнопку «Вставить».",
+            wraplength=480,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 16))
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=3, column=0, columnspan=3, sticky="e")
+        ttk.Button(buttons, text="Отмена", command=self.destroy).pack(
+            side="left", padx=5
+        )
+        ttk.Button(buttons, text="Сохранить", command=self.save).pack(
+            side="left", padx=5
+        )
+
+    def choose_credentials(self):
+        path = filedialog.askopenfilename(
+            parent=self,
+            title="Выберите OAuth JSON",
+            filetypes=[("JSON", "*.json"), ("Все файлы", "*.*")],
+        )
+        if path:
+            self.credentials_entry.delete(0, "end")
+            self.credentials_entry.insert(0, path)
+
+    def paste_folder_id(self):
+        try:
+            value = self.clipboard_get().strip()
+        except tk.TclError:
+            value = ""
+        if not value:
+            messagebox.showwarning(
+                "Буфер обмена",
+                "Буфер обмена пуст.",
+                parent=self,
+            )
+            return
+        self.folder_entry.delete(0, "end")
+        self.folder_entry.insert(0, value)
+
+    def save(self):
+        credentials_file = self.credentials_entry.get().strip()
+        folder_id = self.folder_entry.get().strip()
+        if not credentials_file:
+            messagebox.showwarning(
+                "Проверка данных",
+                "Укажите путь к JSON-файлу OAuth.",
+                parent=self,
+            )
+            return
+        if not Path(credentials_file).exists():
+            messagebox.showwarning(
+                "Проверка данных",
+                "Указанный JSON-файл не найден.",
+                parent=self,
+            )
+            return
+        save_settings(credentials_file, folder_id)
+        messagebox.showinfo(
+            "Настройки Google",
+            "Настройки сохранены.",
+            parent=self,
+        )
+        self.destroy()
+
+
+class ReportReadyDialog(tk.Toplevel):
+    def __init__(self, parent, title, url, rows):
+        super().__init__(parent)
+        self.url = url
+        self.title("Отчёт выгружен")
+        self.geometry("520x220")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        frame = ttk.Frame(self, padding=20)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(
+            frame,
+            text=f"Таблица «{title}» создана.\nЗаписей: {rows}",
+            font=("Arial", 12),
+        ).pack(anchor="w", pady=(0, 12))
+
+        ttk.Label(frame, text="Ссылка:").pack(anchor="w")
+        url_entry = ttk.Entry(frame, width=62)
+        url_entry.pack(fill="x", pady=6)
+        url_entry.insert(0, url)
+        url_entry.configure(state="readonly")
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(anchor="e", pady=12)
+        ttk.Button(
+            buttons, text="Открыть", command=self.open_report
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            buttons, text="Закрыть", command=self.destroy
+        ).pack(side="left", padx=5)
+
+    def open_report(self):
+        if self.url:
+            webbrowser.open(self.url)
+
+
 class MainWindow:
     def __init__(self, root):
         self.root = root
@@ -449,7 +592,7 @@ class MainWindow:
         main_frame = ttk.Frame(self.root, padding=20)
         main_frame.pack(fill="both", expand=True)
 
-        sidebar = ttk.Frame(main_frame, width=200)
+        sidebar = ttk.Frame(main_frame, width=230)
         sidebar.pack(side="left", fill="y", padx=(0, 20))
         sidebar.pack_propagate(False)
 
@@ -476,27 +619,54 @@ class MainWindow:
 
         ttk.Button(
             sidebar,
-            text="Экспорт в Google Sheets",
+            text="Настройки Google",
+            command=self.open_google_settings,
+        ).pack(fill="x", pady=5)
+
+        ttk.Button(
+            sidebar,
+            text="Экспорт всех данных",
             command=self.export_to_google_sheets,
         ).pack(fill="x", pady=5)
 
         self.show_home()
 
+    def open_google_settings(self):
+        GoogleSettingsDialog(self.root)
+
+    def export_section(self, section):
+        loaders = {
+            "clients": self.api.get_clients,
+            "deals": self.api.get_deals,
+            "tasks": self.api.get_tasks,
+        }
+        try:
+            records = loaders[section]()
+            result = export_section_report(section, records)
+            ReportReadyDialog(
+                self.root,
+                result.get("title") or section,
+                result.get("webViewLink") or result.get("spreadsheet_url"),
+                result.get("rows", len(records)),
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Ошибка экспорта",
+                str(error),
+                parent=self.root,
+            )
+
     def export_to_google_sheets(self):
         try:
             result = update_configured_spreadsheet()
             exported = result.get("exported", {})
-
-            messagebox.showinfo(
-                "Экспорт завершён",
-                "Данные успешно экспортированы!\n\n"
-                f"Клиенты: {exported.get('Клиенты', 0)}\n"
-                f"Сделки: {exported.get('Сделки', 0)}\n"
-                f"Задачи: {exported.get('Задачи', 0)}\n\n"
-                f"Ссылка:\n{result.get('spreadsheet_url', '')}",
-                parent=self.root,
+            url = result.get("spreadsheet_url", "")
+            ReportReadyDialog(
+                self.root,
+                "Mini CRM — все данные",
+                url,
+                sum(exported.values()) if exported else 0,
             )
-
         except Exception as error:
             messagebox.showerror(
                 "Ошибка экспорта",
@@ -551,6 +721,12 @@ class MainWindow:
 
         ttk.Button(
             actions, text="Обновить", command=self.load_clients
+        ).pack(side="left", padx=3)
+
+        ttk.Button(
+            actions,
+            text="Выгрузить отчет",
+            command=lambda: self.export_section("clients"),
         ).pack(side="left", padx=3)
 
         columns = ("id", "name", "company", "phone", "email")
@@ -686,6 +862,12 @@ class MainWindow:
             actions, text="Обновить", command=self.load_deals
         ).pack(side="left", padx=3)
 
+        ttk.Button(
+            actions,
+            text="Выгрузить отчет",
+            command=lambda: self.export_section("deals"),
+        ).pack(side="left", padx=3)
+
         columns = (
             "id", "title", "amount", "status", "description", "client_id"
         )
@@ -815,6 +997,12 @@ class MainWindow:
 
         ttk.Button(
             actions, text="Обновить", command=self.load_tasks
+        ).pack(side="left", padx=3)
+
+        ttk.Button(
+            actions,
+            text="Выгрузить отчет",
+            command=lambda: self.export_section("tasks"),
         ).pack(side="left", padx=3)
 
         columns = (

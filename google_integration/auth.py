@@ -6,46 +6,55 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+from google_integration.settings_store import load_settings
 
-# Корневая папка проекта
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# Загружаем переменные окружения
 load_dotenv(BASE_DIR / ".env")
 
-# Разрешения Google API
 SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 
 
-def get_google_credentials():
-    """Получает или обновляет авторизацию Google."""
+def _resolve_credentials_path():
+    settings = load_settings()
+    configured = (
+        settings.get("credentials_file")
+        or os.getenv("GOOGLE_CREDENTIALS_FILE")
+    )
 
-    credentials_file = os.getenv("GOOGLE_CREDENTIALS_FILE")
-    if not credentials_file:
+    if not configured:
         raise ValueError(
-            "В .env не указана переменная GOOGLE_CREDENTIALS_FILE"
+            "Не указан JSON-файл OAuth. "
+            "Откройте «Настройки Google» в приложении "
+            "или задайте GOOGLE_CREDENTIALS_FILE в .env."
         )
 
-    credentials_path = BASE_DIR / credentials_file
-    token_path = BASE_DIR / "token.json"
+    credentials_path = Path(configured)
+    if not credentials_path.is_absolute():
+        credentials_path = BASE_DIR / credentials_path
 
     if not credentials_path.exists():
         raise FileNotFoundError(
             f"Не найден файл OAuth: {credentials_path}"
         )
 
+    return credentials_path
+
+
+def get_google_credentials():
+    """Получает или обновляет авторизацию Google."""
+    credentials_path = _resolve_credentials_path()
+    token_path = BASE_DIR / "token.json"
     credentials = None
 
-    # Проверяем сохранённый токен
     if token_path.exists():
         credentials = Credentials.from_authorized_user_file(
             str(token_path), SCOPES
         )
 
-    # Обновляем токен или запускаем авторизацию
     if credentials and credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
 
@@ -54,16 +63,13 @@ def get_google_credentials():
             str(credentials_path),
             SCOPES,
         )
-
         credentials = flow.run_local_server(
             port=0,
             open_browser=True,
         )
 
-    # Сохраняем токен локально
     token_path.write_text(
         credentials.to_json(),
         encoding="utf-8",
     )
-
     return credentials
