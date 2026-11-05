@@ -1,0 +1,41 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Google credentials and OAuth tokens
+credentials.json
+oauth_credentials.json
+client_secret*.json
+*-service-account*.json
+*-key.json
+token.json
+token.pickle
+*.pickle
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache and tests
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases and generated data
+*.sqlite
+*.sqlite3
+*.db
+data/*
+
+# macOS and IDE
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+
+# Logs
+*.log
