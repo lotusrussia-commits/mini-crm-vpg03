@@ -1,63 +1,78 @@
-# Excel Factory — Google Sheets Report Generator
+# Mini CRM — система управления клиентами и сделками
 
-Автоматический генератор отчётов о продажах на Python с графическим интерфейсом Tkinter и интеграцией с Google Sheets API.
+Mini CRM — настольное приложение для управления клиентами, сделками и задачами с REST API, базой данных SQLite и интеграцией с Google Workspace.
 
-Приложение генерирует тестовые данные о продажах, рассчитывает основные показатели и экспортирует готовый отчёт в Google Таблицы с автоматическим форматированием.
+Приложение позволяет вести клиентскую базу, отслеживать сделки, управлять задачами и экспортировать данные CRM в Google Sheets.
 
 ## Возможности
 
-- Генерация случайных данных о продажах.
-- Выбор количества записей от 5 до 100.
-- Отображение данных в графическом интерфейсе Tkinter.
-- Расчёт количества продаж, проданных товаров и общей выручки.
-- Интеграция с Google Sheets API v4.
-- Экспорт отчётов в Google Таблицы.
-- Очистка предыдущего отчёта перед новой выгрузкой.
-- Автоматическое форматирование таблицы:
-  - объединение ячеек заголовка;
-  - цветовое оформление заголовков;
-  - форматирование денежных значений;
-  - выравнивание данных;
-  - границы таблицы;
-  - выделение итоговой строки;
-  - закрепление строк заголовка;
-  - автоматическая настройка ширины столбцов.
+- Управление клиентами: создание, просмотр, редактирование и удаление.
+- Управление сделками: учёт суммы, статуса, описания и привязки к клиенту.
+- Управление задачами: создание, редактирование, удаление и контроль сроков выполнения.
+- Графический интерфейс на Tkinter.
+- REST API на FastAPI.
+- Хранение данных в SQLite с использованием SQLAlchemy.
+- Интеграция с Google Drive API.
+- Экспорт клиентов, сделок и задач в Google Sheets.
+- Обновление существующей Google Таблицы одной кнопкой из графического интерфейса.
+- Авторизация Google OAuth 2.0.
+- Контейнеризация приложения с помощью Docker и Docker Compose.
 
 ## Технологии
 
 - Python 3.12
+- FastAPI
+- SQLAlchemy
+- SQLite
+- Pydantic
 - Tkinter / ttk
+- Google Drive API
 - Google Sheets API v4
-- Google Authentication
-- Google API Python Client
+- Google OAuth 2.0
 - python-dotenv
+- Docker
+- Docker Compose
+- Git / GitHub
 
 ## Структура проекта
 
 ```text
-google-sheets-report-generator/
-├── app/
-│   ├── __init__.py
-│   ├── google_sheets.py
-│   ├── report_data.py
-│   └── report_generator.py
+mini-crm-vpg03/
+├── backend/
+│   ├── routers/
+│   │   ├── clients.py
+│   │   ├── deals.py
+│   │   └── tasks.py
+│   ├── crud.py
+│   ├── database.py
+│   ├── main.py
+│   ├── models.py
+│   └── schemas.py
+├── config/
+├── google_integration/
+│   ├── auth.py
+│   ├── drive.py
+│   └── sheets.py
+├── gui/
+│   ├── api_client.py
+│   └── main_window.py
+├── legacy/
 ├── .env.example
 ├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
 ├── requirements.txt
-├── README.md
-├── main.py
-└── test_connection.py
+├── test_database.py
+└── README.md
 ```
-
-Локальные файлы `.env` и `credentials.json` в репозиторий не включаются. Они необходимы для настройки подключения и должны быть созданы самостоятельно.
 
 ## Установка и запуск
 
 ### 1. Клонирование проекта
 
 ```bash
-git clone https://github.com/lotusrussia-commits/google-sheets-report-generator.git
-cd google-sheets-report-generator
+git clone https://github.com/lotusrussia-commits/mini-crm-vpg03.git
+cd mini-crm-vpg03
 ```
 
 ### 2. Создание виртуального окружения
@@ -74,74 +89,23 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 4. Настройка Google Cloud
+### 4. Настройка переменных окружения
 
-Для работы приложения необходимо:
-
-1. Создать проект в [Google Cloud Console](https://console.cloud.google.com/).
-2. Включить Google Sheets API.
-3. Создать Service Account.
-4. Создать и скачать JSON-ключ сервисного аккаунта.
-5. Сохранить ключ в корне проекта под именем `credentials.json`.
-6. Создать Google Spreadsheet.
-7. Предоставить адресу сервисного аккаунта права Editor на таблицу.
-
-### 5. Настройка переменных окружения
-
-Создать файл `.env` в корне проекта.
-
-Можно скопировать пример:
+Создать файл `.env` на основе шаблона:
 
 ```bash
 cp .env.example .env
 ```
 
-Затем заполнить `.env`:
+Указать настройки Google:
 
 ```dotenv
-GOOGLE_CREDENTIALS_FILE=credentials.json
+GOOGLE_CREDENTIALS_FILE=oauth_credentials.json
 GOOGLE_SPREADSHEET_ID=your_spreadsheet_id
 ```
 
-Вместо `your_spreadsheet_id` указать ID своей Google Таблицы.
+Для интеграции с Google необходимо создать проект в Google Cloud Console, включить Google Drive API и Google Sheets API, настроить OAuth 2.0 для Desktop Application и скачать JSON-файл OAuth-клиента.
 
-### 6. Запуск приложения
+Сохранить файл в корне проекта под именем `oauth_credentials.json`.
 
-```bash
-python main.py
-```
-
-После запуска откроется графическое приложение, в котором можно сгенерировать отчёт, просмотреть данные и экспортировать их в Google Таблицы.
-
-## Проверка подключения
-
-Для отдельной проверки доступа к Google Sheets API предусмотрен скрипт:
-
-```bash
-python test_connection.py
-```
-
-При успешном подключении скрипт выводит название таблицы и список доступных листов.
-
-## Архитектура
-
-Проект разделён на несколько модулей:
-
-- `app/google_sheets.py` — класс `GoogleSheetsManager`, отвечающий за подключение к Google Sheets API, чтение, запись и форматирование данных.
-- `app/report_data.py` — класс `ReportDataGenerator`, отвечающий за генерацию тестовых данных и расчёт итоговых показателей.
-- `app/report_generator.py` — класс `ReportGeneratorApp`, реализующий графический интерфейс приложения.
-- `main.py` — точка входа в приложение.
-
-## Безопасность
-
-- Секретные ключи и настройки подключения хранятся локально.
-- Файлы `.env` и `credentials.json` исключены из Git через `.gitignore`.
-- Для подключения используется сервисный аккаунт Google.
-
-**Не публикуйте JSON-ключ сервисного аккаунта и содержимое файла `.env` в открытых репозиториях.**
-
-## Автор
-
-Проект выполнен в рамках практического обучения Python и интеграции внешних API.
-
-GitHub: [lotusrussia-commits](https://github.com/lotusrussia-commits)
+При первом обращении к Google API приложение запросит авторизацию через браузер. После успеш
