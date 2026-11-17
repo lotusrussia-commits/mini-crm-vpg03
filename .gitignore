@@ -44,3 +44,6 @@ data/*
 
 # Local Google GUI settings
 config/google_settings.json
+
+# Google OAuth token backups
+token.json.backup-*

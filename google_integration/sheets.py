@@ -199,7 +199,7 @@ def write_formatted_values(
     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
         range=f"'{sheet_title}'!A1",
-        valueInputOption="USER_ENTERED",
+        valueInputOption="RAW",
         body={"values": values},
     ).execute()
 
